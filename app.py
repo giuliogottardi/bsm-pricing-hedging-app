@@ -136,7 +136,7 @@ greeks_at_spot = core.compute_all_greeks(spot_price, strike, maturity, risk_free
 st.title("Black-Scholes-Merton Pricing Engine & Dynamic Hedging Simulator")
 st.caption(
     "Proprietary Options Desk Infrastructure — Dependency-Free Statistical Core · "
-    "Giulio · LM-16 Financial Risk and Data Analysis, Sapienza Università di Roma"
+    "Giulio Donato Gottardi · LM-16 Financial Risk and Data Analysis, Sapienza Università di Roma"
 )
 if data_source != "yfinance":
     st.info("Dati live non disponibili in questo momento: sto usando un percorso GBM sintetico "
