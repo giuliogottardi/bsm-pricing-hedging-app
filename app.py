@@ -1,6 +1,6 @@
 """
 BSM Pricing Engine & Dynamic Hedging Simulator - Streamlit app
-Author: Giulio - LM-16 Financial Risk and Data Analysis, Sapienza Universita di Roma
+Author: Giulio Donato Gottardi - LM-16 Financial Risk and Data Analysis, Sapienza Università di Roma
 Ported from a dependency-free BSM notebook (custom Normal CDF, numerical Greeks,
 Monte Carlo delta hedging, bisection implied vol).
 """
