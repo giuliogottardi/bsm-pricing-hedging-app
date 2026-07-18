@@ -379,7 +379,7 @@ Motore di pricing Black-Scholes-Merton **senza dipendenze statistiche esterne**:
 Dati mancanti o rete non disponibile → l'app ricade automaticamente su un percorso
 GBM sintetico riproducibile, cosi resta sempre utilizzabile end-to-end.
 
-**Autore:** Giulio · LM-16 Financial Risk and Data Analysis, Sapienza Universita di Roma
+**Autore:** Giulio Donato Gottardi · LM-16 Financial Risk and Data Analysis, Sapienza Universita di Roma
 Progetto originariamente sviluppato come deliverable per il corso di Quantitative
 Financial Modelling (Prof. Sergio Bianchi).
 """)
