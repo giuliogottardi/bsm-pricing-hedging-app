@@ -1,87 +1,82 @@
-# BSM Pricing Engine & Dynamic Hedging Desk
+# BSM Pricing & Dynamic Hedging App
+
+An interactive Streamlit application for **European option** pricing under Black-Scholes-Merton (BSM), numerical risk analysis, implied-volatility inversion, and discrete delta-hedging experiments. Built as a quantitative-finance coursework and portfolio project, not as production trading infrastructure.
 
 <p align="center">
-  <img src="assets/screenshot-volatility.png" width="49%" />
-  <img src="assets/screenshot-iv-surface.png" width="49%" />
+  <img src="assets/screenshot-volatility.png" width="75%" />
 </p>
 
-An interactive Streamlit application for pricing European options under Black-Scholes-Merton,
-exploring their Greeks across price/time surfaces, backing out implied volatility from live
-option chains, and stress-testing discrete delta-hedging via Monte Carlo simulation — built
-with a dependency-free statistical core.
+**Live demo:** https://bsm-pricing-hedging-app.streamlit.app/
+**Course context:** Quantitative Financial Modelling, MSc Financial Risk and Data Analysis (LM-16), Sapienza University of Rome.
 
-**[Live demo →](https://bsm-pricing-hedging-app.streamlit.app/)** · Built as part of the
-Quantitative Financial Modelling coursework, LM-16 Financial Risk and Data Analysis, Sapienza
-Università di Roma.
+## Features
 
----
+- **BSM pricing:** European calls and puts, including a continuous dividend-yield input `q`.
+- **Custom Normal CDF:** Abramowitz-Stegun 26.2.17 approximation, implemented without SciPy; NumPy inputs are vectorized.
+- **Numerical Greeks:** central finite differences for Delta, Gamma, Vega, Rho and finite-difference Theta. A validation panel compares these results with analytical BSM Greeks across several bump sizes.
+- **Implied volatility:** bisection inversion with no-arbitrage price-bound checks, price residuals, iteration diagnostics, and low-Vega/ill-conditioned quote rejection.
+- **Implied-volatility surface:** multi-expiry calls or puts according to the selected option type, bid/ask-mid preference, broad-spread filtering, explicit labeling of last-price fallbacks, maturity-specific interpolated rates, and no extrapolation outside observed strike ranges.
+- **Discrete delta hedging:** reproducible Monte Carlo paths, configurable rebalancing frequency, vectorized simulation across paths, optional realized volatility/drift scenarios, dividend yield and proportional turnover costs.
+- **Yield curve proxy:** fetches Treasury yield proxies and interpolates by maturity. The conversion is an approximation; this is not a bootstrapped zero curve.
+- **Data resilience:** synthetic GBM price history and synthetic option quotes keep the app usable when Yahoo Finance data are unavailable.
+- **Automated tests and CI:** parity, CDF approximation, Greeks, IV round-trip/bounds, synthetic surface recovery, and reproducible Monte Carlo tests.
 
-## Overview
+## Model and interpretation notes
 
-Most BSM implementations lean on `scipy.stats.norm` and closed-form Greeks. This project
-rebuilds the pricing and risk stack from first principles instead, as an options desk might
-when auditing a black-box library or pricing a payoff with no closed form:
+1. **Exercise style:** the BSM formulas implemented here price European options. Many US single-stock listed options are American-style. Applying European BSM to their quotes gives a model-implied approximation, not an official exchange IV or an American-option valuation.
+2. **Volatility:** the main pricing panel uses annualized historical volatility or a user-specified volatility. The IV surface is a separate market-quote analysis; it does not silently replace the selected pricing volatility with a strike/maturity-specific IV.
+3. **Market data:** Yahoo Finance quotes may be delayed, sparse, stale or missing. Mid quotes are preferred; wide spreads are filtered; last prices are only used as labeled fallbacks. The app reports rejected IV observations. Synthetic results are model-generated and must not be described as market observations.
+4. **Rates:** the curve consists of Treasury-yield proxies, including a conversion approximation for the 13-week bill proxy. Linear interpolation is pragmatic but is not equivalent to bootstrapping discount factors from market instruments.
+5. **Hedging:** the baseline uses risk-neutral drift `mu = r - q`, matching the BSM benchmark and isolating discretization error. Optional drift, realized-volatility and transaction-cost inputs create stress scenarios; they do not turn the simulator into a calibrated real-world risk forecast. Dividends are approximated as a continuous yield.
+6. **Numerics:** Abramowitz-Stegun CDF approximation has a small nonzero approximation error. Finite-difference accuracy depends on bump size, maturity and moneyness; convergence is measured against analytical Greeks rather than assumed.
+7. **Not production-ready:** no American exercise model, calibrated volatility model (e.g. SVI/SABR), arbitrage-free surface fitting, full market-data validation, discrete dividend schedule, exchange contract details, or execution/market-impact model is included.
 
-- The standard Normal CDF is implemented from scratch via the Abramowitz & Stegun (1964)
-  rational polynomial approximation — accurate to ~1e-7, no `scipy` dependency.
-- Greeks are computed by finite differences on the pricer itself, not analytically —
-  the same technique used to validate a pricer against exotic or path-dependent payoffs.
-- Implied volatility is recovered by bisection, not `scipy.optimize`.
-- Delta-hedging is simulated with discrete rebalancing (daily/weekly/monthly), making the
-  hedging error that continuous-time theory assumes away explicit and measurable.
+## Project structure
 
-The app pulls live spot prices, a live Treasury yield curve, and live option chains via
-`yfinance`, with reproducible synthetic fallbacks so it degrades gracefully when the network
-or the data provider is unavailable.
-
-## Key Features
-
-- **Pricing & Greeks** — European call/put pricing with all five Greeks (Delta, Gamma, Theta,
-  Vega, Rho), each cross-checked for finite-difference convergence.
-- **3D surfaces** — interactive price and Greek surfaces over (spot, time-to-maturity).
-- **Volatility** — historical/rolling realized volatility, plus a genuine implied volatility
-  surface built from a real multi-expiration option chain and bisection inversion.
-- **Hedging simulator** — single-path diagnostics and a full Monte Carlo P&L distribution for
-  discretely-rebalanced delta hedging, with tracking error compared across rebalancing
-  frequencies.
-- **Live market data, no hardcoded assumptions** — spot price and risk-free rate default to
-  live values (last close; yield curve interpolated to the selected maturity), each with a
-  manual-override toggle for scenario analysis.
-
-## Technical Highlights
-
-| Area | Approach |
-|---|---|
-| Normal CDF | Abramowitz & Stegun 26.2.17 polynomial approximation (no `scipy`) |
-| Greeks | Central finite differences, convergence-checked against a tighter step |
-| Implied vol | Bisection root-finding on the pricer (no `scipy.optimize`) |
-| Risk-free rate | Live Treasury yield curve (`^IRX`/`^FVX`/`^TNX`/`^TYX`), linearly interpolated to maturity |
-| Hedging | Discrete delta-hedging Monte Carlo, GBM paths, rebalancing-frequency comparison |
-| Data resilience | Every live data call has a reproducible synthetic fallback |
-
-## Project Structure
-
-```
-core.py           Pure computation: pricing, Greeks, hedging, IV — no I/O, no plotting
-app.py            Streamlit UI: sidebar controls + 5 analysis tabs
-requirements.txt  Dependencies
+```text
+core.py                       Pricing, Greeks, IV, market data and hedging calculations
+app.py                        Streamlit UI
+tests/test_core.py            Automated numerical/regression tests
+.github/workflows/tests.yml   GitHub Actions test workflow
+benchmarks/benchmark_mc.py    Local vectorized-Monte-Carlo benchmark
+requirements.txt              Runtime dependencies
 ```
 
-## Running Locally
+## Run locally
 
 ```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
+Run the test suite:
+
+```bash
+pip install pytest
+pytest -q
+```
+
+## Validation
+
+The automated tests verify:
+
+- custom CDF approximation against `math.erfc` reference values;
+- put-call parity with and without dividend yield;
+- finite-difference Greeks against analytical BSM formulas;
+- implied-volatility round-trip recovery and rejection of prices outside European no-arbitrage bounds;
+- recovery of the synthetic volatility surface;
+- deterministic Monte Carlo output for a fixed seed;
+- hedging scenario inputs and transaction-cost accounting.
+
+These are model/unit tests, not evidence of profitability or a substitute for independent model validation. To benchmark the vectorized Monte Carlo against the per-path implementation on your own machine, run `python benchmarks/benchmark_mc.py`; timing ratios are hardware- and environment-dependent.
+
 ## Deployment
 
-Deployed on [Streamlit Community Cloud](https://streamlit.io/cloud). To deploy your own copy:
-fork this repo, connect it at [share.streamlit.io](https://share.streamlit.io), and point it
-at `app.py`.
+The app can be deployed on [Streamlit Community Cloud](https://streamlit.io/cloud) by connecting a fork and selecting `app.py` as the entry point. Public demo availability depends on the hosting service and may sleep when inactive.
 
 ## Author
 
-**Giulio Gottardi** — MSc Financial Risk and Data Analysis (LM-16), Sapienza Università di Roma.
-Originally developed as a pricing-engine deliverable for the Quantitative Financial Modelling
-course.
+**Giulio Gottardi** - MSc Financial Risk and Data Analysis (LM-16), Sapienza University of Rome.
