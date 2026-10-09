@@ -1,4 +1,4 @@
-﻿# BSM Pricing & Dynamic Hedging App
+# BSM Pricing & Dynamic Hedging App
 
 An interactive Streamlit application for **European option** pricing under Black-Scholes-Merton (BSM), numerical risk analysis, implied-volatility inversion, and discrete delta-hedging experiments. Built as a quantitative-finance coursework and portfolio project, not as production trading infrastructure.
 
@@ -12,7 +12,7 @@ An interactive Streamlit application for **European option** pricing under Black
 ## Features
 
 - **BSM pricing:** European calls and puts, including a continuous dividend-yield input `q`.
-- **Custom Normal CDF:** Abramowitzâ€“Stegun 26.2.17 approximation, implemented without SciPy; NumPy inputs are vectorized.
+- **Custom Normal CDF:** Abramowitz-Stegun 26.2.17 approximation, implemented without SciPy; NumPy inputs are vectorized.
 - **Numerical Greeks:** central finite differences for Delta, Gamma, Vega, Rho and finite-difference Theta. A validation panel compares these results with analytical BSM Greeks across several bump sizes.
 - **Implied volatility:** bisection inversion with no-arbitrage price-bound checks, price residuals, iteration diagnostics, and low-Vega/ill-conditioned quote rejection.
 - **Implied-volatility surface:** multi-expiry calls or puts according to the selected option type, bid/ask-mid preference, broad-spread filtering, explicit labeling of last-price fallbacks, maturity-specific interpolated rates, and no extrapolation outside observed strike ranges.
@@ -28,7 +28,7 @@ An interactive Streamlit application for **European option** pricing under Black
 3. **Market data:** Yahoo Finance quotes may be delayed, sparse, stale or missing. Mid quotes are preferred; wide spreads are filtered; last prices are only used as labeled fallbacks. The app reports rejected IV observations. Synthetic results are model-generated and must not be described as market observations.
 4. **Rates:** the curve consists of Treasury-yield proxies, including a conversion approximation for the 13-week bill proxy. Linear interpolation is pragmatic but is not equivalent to bootstrapping discount factors from market instruments.
 5. **Hedging:** the baseline uses risk-neutral drift `mu = r - q`, matching the BSM benchmark and isolating discretization error. Optional drift, realized-volatility and transaction-cost inputs create stress scenarios; they do not turn the simulator into a calibrated real-world risk forecast. Dividends are approximated as a continuous yield.
-6. **Numerics:** Abramowitzâ€“Stegun CDF approximation has a small nonzero approximation error. Finite-difference accuracy depends on bump size, maturity and moneyness; convergence is measured against analytical Greeks rather than assumed.
+6. **Numerics:** Abramowitz-Stegun CDF approximation has a small nonzero approximation error. Finite-difference accuracy depends on bump size, maturity and moneyness; convergence is measured against analytical Greeks rather than assumed.
 7. **Not production-ready:** no American exercise model, calibrated volatility model (e.g. SVI/SABR), arbitrage-free surface fitting, full market-data validation, discrete dividend schedule, exchange contract details, or execution/market-impact model is included.
 
 ## Project structure
@@ -79,4 +79,4 @@ The app can be deployed on [Streamlit Community Cloud](https://streamlit.io/clou
 
 ## Author
 
-**Giulio Gottardi** â€” MSc Financial Risk and Data Analysis (LM-16), Sapienza University of Rome.
+**Giulio Gottardi** - MSc Financial Risk and Data Analysis (LM-16), Sapienza University of Rome.
