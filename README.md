@@ -4,6 +4,7 @@ An interactive Streamlit application for **European option** pricing under Black
 
 <p align="center">
   <img src="assets/screenshot-volatility.png" width="75%" />
+  <img src="assets/screenshot-iv-surface.png" width="75%" />
 </p>
 
 **Live demo:** https://bsm-pricing-hedging-app.streamlit.app/
