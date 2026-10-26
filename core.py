@@ -436,65 +436,184 @@ def implied_vol_bisection(market_price,S,K,T,r,option_type="call",vol_lo=1e-4,vo
     return done(mid,status,residual,i,vega)
 
 
-def fetch_option_chain(ticker,spot,risk_free_rate,max_expirations=8,seed=7,q=0.0,curve=None):
-    """Fetch liquid-ish call/put mid quotes; explicitly label last-price fallback.
 
-    American-listed equity options are treated as European BSM inputs here, so the
-    resulting IVs are model-implied approximations, not exchange-standard IV marks.
+def fetch_option_chain(
+    ticker,
+    spot,
+    risk_free_rate,
+    max_expirations=8,
+    seed=7,
+    q=0.0,
+    curve=None,
+):
+    """Fetch option quotes from Yahoo Finance, with a diagnostic synthetic fallback.
+
+    Listed US equity options are generally American-style. Their implied
+    volatilities are approximations when inverted with the European BSM model.
     """
-    if YFINANCE_AVAILABLE:
+    rows = []
+    yf_error = None
+
+    if not YFINANCE_AVAILABLE:
+        yf_error = "yfinance library is not installed."
+    else:
         try:
-            tk=yf.Ticker(ticker)
-            all_expirations=list(tk.options)
-            if len(all_expirations) > max_expirations:
-                # Sample across the available term structure instead of taking only
-                # the nearest weekly expiries, which can create a misleadingly narrow surface.
-                indices=np.linspace(0, len(all_expirations)-1, max_expirations).round().astype(int)
-                expirations=[all_expirations[i] for i in sorted(set(indices))]
+            tk = yf.Ticker(ticker)
+            all_expirations = list(tk.options)
+
+            if not all_expirations:
+                yf_error = "Yahoo Finance returned no option expirations."
             else:
-                expirations=all_expirations
-            rows=[]; today=pd.Timestamp.today().normalize()
-            for exp in expirations:
-                T=(pd.Timestamp(exp)-today).days/365.0
-                if T<=0.02: continue
-                rT=risk_free_rate_for_maturity(curve,T) if curve else risk_free_rate
-                chain=tk.option_chain(exp)
-                for typ,frame in (("call",chain.calls),("put",chain.puts)):
-                    if frame is None or frame.empty: continue
-                    frame=frame[(frame["strike"]>=0.75*spot)&(frame["strike"]<=1.25*spot)]
-                    for _,row in frame.iterrows():
-                        bid=float(row.get("bid",0) or 0); ask=float(row.get("ask",0) or 0)
-                        last=float(row.get("lastPrice",0) or 0)
-                        if bid>0 and ask>=bid and ask>0:
-                            mid=(bid+ask)/2; source="mid"
-                            spread=(ask-bid)/mid if mid>0 else np.inf
-                            if spread>0.75: continue
-                        elif last>0:
-                            mid=last; source="last_fallback"
-                        else: continue
-                        if mid<0.01: continue
-                        rows.append({"T":T,"K":float(row["strike"]),"price":float(mid),"option_type":typ,
-                                     "quote_source":source,"r":rT,"q":q,"bid":bid,"ask":ask})
-            if len(rows)>=10:
-                return {"rows":rows,"true_vols":None,"source":"yfinance quotes (European BSM approximation)"}
-        except Exception:
-            pass
-    rng=np.random.default_rng(seed)
-    maturities=[0.08,0.25,0.5,1.0,1.5,2.0]
-    strikes=np.arange(round(0.7*spot),round(1.3*spot)+1,max(1,round(spot*0.025)))
-    rows=[]; true_vols={}
+                if len(all_expirations) > max_expirations:
+                    indices = np.linspace(
+                        0,
+                        len(all_expirations) - 1,
+                        max_expirations,
+                    ).round().astype(int)
+                    expirations = [
+                        all_expirations[i]
+                        for i in sorted(set(indices))
+                    ]
+                else:
+                    expirations = all_expirations
+
+                today = pd.Timestamp.today().normalize()
+                expirations_checked = 0
+
+                for exp in expirations:
+                    T = (pd.Timestamp(exp) - today).days / 365.0
+                    if T <= 0.02:
+                        continue
+
+                    expirations_checked += 1
+                    rT = (
+                        risk_free_rate_for_maturity(curve, T)
+                        if curve
+                        else risk_free_rate
+                    )
+
+                    chain = tk.option_chain(exp)
+
+                    for typ, frame in (
+                        ("call", chain.calls),
+                        ("put", chain.puts),
+                    ):
+                        if frame is None or frame.empty:
+                            continue
+
+                        frame = frame[
+                            (frame["strike"] >= 0.75 * spot)
+                            & (frame["strike"] <= 1.25 * spot)
+                        ]
+
+                        for _, row in frame.iterrows():
+                            bid = float(row.get("bid", 0) or 0)
+                            ask = float(row.get("ask", 0) or 0)
+                            last = float(row.get("lastPrice", 0) or 0)
+
+                            if bid > 0 and ask >= bid and ask > 0:
+                                mid = (bid + ask) / 2.0
+                                source = "mid"
+                                spread = (
+                                    (ask - bid) / mid
+                                    if mid > 0
+                                    else np.inf
+                                )
+                                if spread > 0.75:
+                                    continue
+                            elif last > 0:
+                                mid = last
+                                source = "last_fallback"
+                            else:
+                                continue
+
+                            if mid < 0.01:
+                                continue
+
+                            rows.append({
+                                "T": T,
+                                "K": float(row["strike"]),
+                                "price": float(mid),
+                                "option_type": typ,
+                                "quote_source": source,
+                                "r": rT,
+                                "q": q,
+                                "bid": bid,
+                                "ask": ask,
+                            })
+
+                if len(rows) >= 10:
+                    return {
+                        "rows": rows,
+                        "true_vols": None,
+                        "source": (
+                            "yfinance quotes "
+                            "(European BSM approximation)"
+                        ),
+                    }
+
+                yf_error = (
+                    f"Only {len(rows)} valid quotes retrieved "
+                    f"across {expirations_checked} eligible expirations; "
+                    "at least 10 quotes are required."
+                )
+
+        except Exception as exc:
+            yf_error = f"{type(exc).__name__}: {exc}"
+
+    # Synthetic fallback: useful for testing the numerical inversion,
+    # but it does not represent observed market option prices.
+    rng = np.random.default_rng(seed)
+    maturities = [0.08, 0.25, 0.5, 1.0, 1.5, 2.0]
+    strikes = np.arange(
+        round(0.7 * spot),
+        round(1.3 * spot) + 1,
+        max(1, round(spot * 0.025)),
+    )
+
+    rows = []
+    true_vols = {}
+
     for T in maturities:
-        rT=risk_free_rate_for_maturity(curve,T) if curve else risk_free_rate
+        rT = (
+            risk_free_rate_for_maturity(curve, T)
+            if curve
+            else risk_free_rate
+        )
+
         for K in strikes:
-            m=np.log(K/spot)
-            true_vol=float(np.clip(0.22+0.055*m*m-0.05*m-0.03*np.sqrt(T),0.03,2.0))
-            for typ in ("call","put"):
-                price=float(bsm_price(spot,K,T,rT,true_vol,typ,q))
-                if price>0.01:
-                    rows.append({"T":T,"K":float(K),"price":price,"option_type":typ,"quote_source":"synthetic",
-                                 "r":rT,"q":q,"bid":np.nan,"ask":np.nan})
-                    true_vols[(T,float(K),typ)]=true_vol
-    return {"rows":rows,"true_vols":true_vols,"source":"synthetic model-generated quotes"}
+            m = np.log(K / spot)
+            true_vol = float(np.clip(
+                0.22 + 0.055 * m * m - 0.05 * m - 0.03 * np.sqrt(T),
+                0.03,
+                2.0,
+            ))
+
+            for typ in ("call", "put"):
+                price = float(bsm_price(spot, K, T, rT, true_vol, typ, q))
+
+                if price > 0.01:
+                    rows.append({
+                        "T": T,
+                        "K": float(K),
+                        "price": price,
+                        "option_type": typ,
+                        "quote_source": "synthetic",
+                        "r": rT,
+                        "q": q,
+                        "bid": np.nan,
+                        "ask": np.nan,
+                    })
+                    true_vols[(T, float(K), typ)] = true_vol
+
+    return {
+        "rows": rows,
+        "true_vols": true_vols,
+        "source": (
+            "synthetic model-generated quotes "
+            f"(Yahoo fallback reason: {yf_error})"
+        ),
+    }
 
 
 def build_iv_surface(ticker,spot,risk_free_rate,n_price_points,max_expirations=8,q=0.0,curve=None,option_type=None):
