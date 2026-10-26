@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import yfinance as yf
 
 import core
 
@@ -270,6 +271,15 @@ with tab_vol:
     st.divider()
     st.subheader("Superficie di volatilità implicita (option chain + bisezione)")
     st.caption(f"Recupera quote {option_type}s multi-scadenza via yfinance (fallback sintetico se necessario) e inverte i prezzi BSM per ricavare la IV. La selezione segue il tipo di opzione scelto nella sidebar.")
+
+    # TEMPORARY DIAGNOSTIC: check whether Yahoo returns NVDA option expirations.
+    st.write("Test option chain Yahoo Finance")
+    try:
+        test_ticker = yf.Ticker("NVDA")
+        st.write("Scadenze:", test_ticker.options)
+    except Exception as exc:
+        st.error(f"{type(exc).__name__}: {exc}")
+
     if st.button("Costruisci IV surface", type="primary"):
         iv_data = cached_iv_surface(ticker, spot_price, risk_free_rate, n_price_points, dividend_yield, tuple(sorted(live_curve.items())) if not rate_override else tuple(), option_type)
         chain_source = iv_data["chain"]["source"]
