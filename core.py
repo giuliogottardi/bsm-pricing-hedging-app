@@ -508,22 +508,53 @@ def build_iv_surface(ticker,spot,risk_free_rate,n_price_points,max_expirations=8
             implied_rows.append({**row,**diag})
         else:
             rejected.append({**row,**diag})
-    by_maturity=defaultdict(list)
-    for row in implied_rows: by_maturity[row["T"]].append((row["K"],row["iv"]))
-    Ts=np.array(sorted(by_maturity.keys()),dtype=float)
-    Ks=np.linspace(0.75*spot,1.25*spot,int(n_price_points))
-    grid=np.full((len(Ts),len(Ks)),np.nan)
-    for i,T in enumerate(Ts):
-        # Calls and puts may both exist at the same strike. Aggregate duplicates
-        # rather than arbitrarily keeping whichever quote appeared first.
-        pts=sorted(by_maturity[T]); grouped=defaultdict(list)
-        for strike, iv in pts: grouped[float(strike)].append(float(iv))
-        unique=np.array(sorted(grouped), dtype=float)
-        vols=np.array([float(np.median(grouped[k])) for k in unique])
-        if len(unique)>=2:
-            inside=(Ks>=unique.min()) & (Ks<=unique.max())
-            grid[i,inside]=np.interp(Ks[inside],unique,vols)
-        elif len(unique)==1:
-            grid[i,np.argmin(abs(Ks-unique[0]))]=vols[0]
-    return {"chain":chain,"implied_rows":implied_rows,"rejected_rows":rejected,
-            "T_axis":Ts,"K_axis":Ks,"grid":grid}
+    
+    by_maturity = defaultdict(list)
+    for row in implied_rows:
+        by_maturity[row["T"]].append((row["K"], row["iv"]))
+
+    Ts = np.array(sorted(by_maturity.keys()), dtype=float)
+    Ks = np.linspace(0.75 * spot, 1.25 * spot, int(n_price_points))
+    grid = np.full((len(Ts), len(Ks)), np.nan)
+
+    # 1. Interpolazione lungo lo strike per ogni scadenza.
+    for i, T in enumerate(Ts):
+        pts = sorted(by_maturity[T])
+        grouped = defaultdict(list)
+
+        for strike, iv in pts:
+            grouped[float(strike)].append(float(iv))
+
+        unique = np.array(sorted(grouped), dtype=float)
+        vols = np.array([
+            float(np.median(grouped[k])) for k in unique
+        ])
+
+        if len(unique) >= 2:
+            inside = (Ks >= unique.min()) & (Ks <= unique.max())
+            grid[i, inside] = np.interp(Ks[inside], unique, vols)
+        elif len(unique) == 1:
+            idx = np.argmin(np.abs(Ks - unique[0]))
+            grid[i, idx] = vols[0]
+
+    # 2. Interpolazione temporale solo nei range coperti dai dati.
+    for j in range(len(Ks)):
+        valid = np.isfinite(grid[:, j])
+
+        if valid.sum() >= 2:
+            t_valid = Ts[valid]
+            iv_valid = grid[valid, j]
+
+            inside_t = (Ts >= t_valid.min()) & (Ts <= t_valid.max())
+            grid[inside_t, j] = np.interp(
+                Ts[inside_t], t_valid, iv_valid
+            )
+
+    return {
+        "chain": chain,
+        "implied_rows": implied_rows,
+        "rejected_rows": rejected,
+        "T_axis": Ts,
+        "K_axis": Ks,
+        "grid": grid,
+    }
